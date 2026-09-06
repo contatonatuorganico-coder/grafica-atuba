@@ -8,7 +8,7 @@ client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    resposta = ""
+    resposta = "Digite sua duvida acima."
     if request.method == "POST":
         pergunta = request.form.get("pergunta")
         if pergunta:
@@ -18,19 +18,14 @@ def index():
             )
             resposta = response.text
             
-    return """
-    <html>
-        <head><title>Grafica Atuba</title></head>
-        <body style="font-family: Arial; padding: 20px;">
-            <h2>Grafica Atuba - Assistente IA</h2>
-            <form method="POST">
-                <input type="text" name="pergunta" placeholder="Digite sua duvida..." style="width: 300px; padding: 5px;" required>
-                <button type="submit" style="padding: 5px 10px;">Enviar</button>
-            </form>
-            <p style="margin-top: 20px;"><b>Resposta:</b><br>{}</p>
-        </body>
-    </html>
-    """.format(resposta)
+    return f"""
+    <h2>Grafica Atuba - IA</h2>
+    <form method="POST">
+        <input type="text" name="pergunta" placeholder="Digite aqui..." required>
+        <button type="submit">Enviar</button>
+    </form>
+    <p><b>Resposta:</b> {resposta}</p>
+    """
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
