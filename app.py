@@ -1,6 +1,7 @@
 import base64
 import os
 import requests
+import google.generativeai as genai
 from flask import Flask, request
 
 app = Flask(__name__)
@@ -11,15 +12,21 @@ EVOLUTION_INSTANCE = os.environ.get("EVOLUTION_INSTANCE_NAME", "grafica-atuba")
 API_KEY = os.environ.get("EVOLUTION_API_KEY", "5F1D6E603161-4C5D-9DBA-7A59564694BF")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+
 def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
     if not GEMINI_API_KEY:
-        return "[DIAGNÓSTICO ERRO]: A variável GEMINI_API_KEY não está configurada no Render!"
+        return (
+            "Olá! Seja bem-vindo à *Gráfica Atuba*! 🖨️✨\n\n"
+            "Recebemos sua mensagem. Como podemos ajudar com seus materiais impressos hoje?"
+        )
 
-    prompt_texto = f"""
-    Você é o assistente virtual comercial da Gráfica Atuba.
-    Seu objetivo é atender os clientes no WhatsApp, tirar dúvidas e fornecer orçamentos com base na nossa tabela de preços.
+    prompt_sistema = """
+    Você é o assistente virtual comercial da **Gráfica Atuba**.
+    Seu objetivo é atender os clientes no WhatsApp, tirar dúvidas, analisar fotos enviadas e fornecer orçamentos com base na nossa tabela de preços.
 
-    TABELA DE PREÇOS DE REFERÊNCIA:
+    TABELA DE PREÇOS DE REFERÊNCIA (Valores aproximados para orçamento inicial):
     1. Cartão de Visita (Couché 300g, 9x5cm, Verniz UV):
        - 500 unidades: R$ 95,00
        - 1.000 unidades: R$ 140,00
@@ -38,27 +45,51 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
        - 5 talões A5: R$ 130,00
        - 10 talões A5: R$ 210,00
 
-    Mensagem do cliente: "{mensagem_cliente}"
+    INSTRUÇÕES DE RESPOSTA:
+    - Se o cliente enviar uma **imagem/foto**, analise a imagem e identifique o tipo de material gráfico visível.
+    - Dê preços diretos usando a tabela acima quando o cliente perguntar por um produto específico.
+    - Se o cliente pedir uma quantidade ou formato diferente, ofereça a estimativa aproximada e informe que a equipe comercial ajusta para medidas personalizadas.
+    - Seja cortês, profissional, use emojis com moderação e convide o cliente a enviar a arte final ou tirar dúvidas.
     """
 
-    parts = [{"text": prompt_texto}]
-    if imagem_bytes and mime_type:
-        img_b64 = base64.b64encode(imagem_bytes).decode("utf-8")
-        parts.append({"inline_data": {"mime_type": mime_type, "data": img_b64}})
-
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
-    payload = {"contents": [{"parts": parts}]}
-    headers = {"Content-Type": "application/json"}
-
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=12)
-        res_json = response.json()
-        if "candidates" in res_json and len(res_json["candidates"]) > 0:
-            return res_json["candidates"][0]["content"]["parts"][0]["text"]
-        else:
-            return f"[DIAGNÓSTICO GEMINI]: Erro na resposta da API -> {res_json}"
+        # Utilizando o modelo atualizado
+        model = genai.GenerativeModel("gemini-2.5-flash")
+        
+        conteudos = [
+            {"role": "user", "parts": [prompt_sistema, f"Mensagem do cliente: {mensagem_cliente}"]}
+        ]
+
+        if imagem_bytes and mime_type:
+            conteudos[0]["parts"].append({
+                "mime_type": mime_type,
+                "data": imagem_bytes
+            })
+
+        response = model.generate_content(conteudos)
+        if response and response.text:
+            return response.text
     except Exception as e:
-        return f"[DIAGNÓSTICO ERRO]: Exceção ao chamar Gemini -> {str(e)}"
+        print(f"Erro na chamada Gemini SDK: {e}", flush=True)
+        # Fallback alternativo para REST usando o modelo recente
+        try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+            parts = [{"text": f"{prompt_sistema}\nMensagem do cliente: {mensagem_cliente}"}]
+            if imagem_bytes and mime_type:
+                img_b64 = base64.b64encode(imagem_bytes).decode("utf-8")
+                parts.append({"inline_data": {"mime_type": mime_type, "data": img_b64}})
+            
+            resp = requests.post(url, json={"contents": [{"parts": parts}]}, headers={"Content-Type": "application/json"}, timeout=12)
+            res_json = resp.json()
+            if "candidates" in res_json and len(res_json["candidates"]) > 0:
+                return res_json["candidates"][0]["content"]["parts"][0]["text"]
+        except Exception as err_rest:
+            print(f"Erro no fallback REST: {err_rest}", flush=True)
+
+    return (
+        "Olá! Seja bem-vindo à *Gráfica Atuba*! 🖨️✨\n\n"
+        "Recebemos o seu contato. Como podemos ajudar com seus materiais impressos hoje?"
+    )
 
 @app.route("/", methods=["GET"])
 def home():
@@ -105,7 +136,7 @@ def webhook():
                 user_message = message_obj["extendedTextMessage"].get("text", "")
             elif "imageMessage" in message_obj and isinstance(message_obj["imageMessage"], dict):
                 img_data = message_obj["imageMessage"]
-                user_message = img_data.get("caption", "Material gráfico enviado para orçamento")
+                user_message = img_data.get("caption", "Foto enviada para orçamento de impressão")
                 if "base64" in img_data:
                     try:
                         imagem_bytes = base64.b64decode(img_data["base64"])
@@ -143,11 +174,7 @@ def webhook():
             resp_envio = requests.post(url_envio, json=payload_envio, headers=headers, timeout=10)
             if resp_envio.status_code not in [200, 201]:
                 numero_limpo = "".join(filter(str.isdigit, str(remote_jid)))
-                payload_fallback = {
-                    "number": numero_limpo,
-                    "text": resposta_bot
-                }
-                requests.post(url_envio, json=payload_fallback, headers=headers, timeout=10)
+                requests.post(url_envio, json={"number": numero_limpo, "text": resposta_bot}, headers=headers, timeout=10)
         except Exception as err_envio:
             print(f"Erro no envio da resposta: {err_envio}", flush=True)
 
