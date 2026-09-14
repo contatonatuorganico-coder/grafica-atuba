@@ -5,7 +5,6 @@ from flask import Flask, request
 
 app = Flask(__name__)
 
-# Lê as variáveis de ambiente exatamente como estão no Render
 EVOLUTION_URL = os.environ.get("EVOLUTION_API_URL", "https://evolution-api-production-5008.up.railway.app").rstrip("/")
 EVOLUTION_INSTANCE = os.environ.get("EVOLUTION_INSTANCE_NAME", "grafica-atuba")
 API_KEY = os.environ.get("EVOLUTION_API_KEY", "1119905686ED-4332-97E9-C6A9D3F866A8")
@@ -41,7 +40,6 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
         img_b64 = base64.b64encode(imagem_bytes).decode("utf-8")
         parts.append({"inline_data": {"mime_type": mime_type, "data": img_b64}})
 
-    # Modelo atualizado para gemini-1.5-flash
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
     payload = {"contents": [{"parts": parts}]}
     headers = {"Content-Type": "application/json"}
@@ -84,10 +82,9 @@ def webhook():
             return "OK", 200
 
         key_data = sub_data.get("key", {}) if isinstance(sub_data, dict) else {}
-        remote_jid = key_data.get("remoteJid", "") if isinstance(key_data, dict) else {}
-        phone = data.get("phone") or (str(remote_jid).split("@")[0] if "@" in str(remote_jid) else "")
+        remote_jid = key_data.get("remoteJid", "") or data.get("remoteJid", "")
 
-        if not phone or "status" in str(data.get("event", "")).lower():
+        if not remote_jid or "status" in str(data.get("event", "")).lower():
             return "OK", 200
 
         message_obj = sub_data.get("message", {}) if isinstance(sub_data, dict) and "message" in sub_data else data
@@ -129,12 +126,16 @@ def webhook():
         
         url_envio = f"{EVOLUTION_URL}/message/sendText/{EVOLUTION_INSTANCE}"
         headers = {"apikey": API_KEY, "Content-Type": "application/json"}
-        numero_limpo = "".join(filter(str.isdigit, str(phone)))
-        payload_envio = {"number": numero_limpo, "text": resposta_bot}
+        
+        # Envio estruturado utilizando o remoteJid para evitar erro 400
+        payload_envio = {
+            "number": remote_jid,
+            "text": resposta_bot
+        }
 
         try:
             resp_envio = requests.post(url_envio, json=payload_envio, headers=headers, timeout=10)
-            print(f"Status do Envio: {resp_envio.status_code}")
+            print(f"Status do Envio para Evolution API: {resp_envio.status_code} - {resp_envio.text}")
         except Exception as err_envio:
             print(f"Erro ao enviar requisição HTTP: {err_envio}")
 
