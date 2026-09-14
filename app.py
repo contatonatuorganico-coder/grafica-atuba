@@ -5,6 +5,7 @@ from flask import Flask, request
 
 app = Flask(__name__)
 
+# Variáveis de Ambiente
 EVOLUTION_URL = os.environ.get("EVOLUTION_API_URL", "https://evolution-api-production-5008.up.railway.app").rstrip("/")
 EVOLUTION_INSTANCE = os.environ.get("EVOLUTION_INSTANCE_NAME", "grafica-atuba")
 API_KEY = os.environ.get("EVOLUTION_API_KEY", "1119905686ED-4332-97E9-C6A9D3F866A8")
@@ -126,8 +127,8 @@ def webhook():
         
         url_envio = f"{EVOLUTION_URL}/message/sendText/{EVOLUTION_INSTANCE}"
         headers = {"apikey": API_KEY, "Content-Type": "application/json"}
-        
-        # Envio estruturado
+
+        # 1ª Tentativa: Envia pelo remoteJid original retornado pelo WhatsApp
         payload_envio = {
             "number": str(remote_jid),
             "text": resposta_bot
@@ -135,7 +136,17 @@ def webhook():
 
         try:
             resp_envio = requests.post(url_envio, json=payload_envio, headers=headers, timeout=10)
-            print(f"RESPOSTA EVOLUTION: {resp_envio.status_code} - {resp_envio.text}", flush=True)
+            print(f"ENVIO 1 (JID): {resp_envio.status_code} - {resp_envio.text}", flush=True)
+
+            # 2ª Tentativa (Fallback): Se o JID der erro (status != 200/201), tenta enviando apenas os números
+            if resp_envio.status_code not in [200, 201]:
+                numero_limpo = "".join(filter(str.isdigit, str(remote_jid)))
+                payload_fallback = {
+                    "number": numero_limpo,
+                    "text": resposta_bot
+                }
+                resp_fallback = requests.post(url_envio, json=payload_fallback, headers=headers, timeout=10)
+                print(f"ENVIO 2 (NUMERO LIMPO): {resp_fallback.status_code} - {resp_fallback.text}", flush=True)
         except Exception as err_envio:
             print(f"Erro ao enviar requisição HTTP: {err_envio}", flush=True)
 
