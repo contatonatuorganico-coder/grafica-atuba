@@ -17,6 +17,7 @@ if GEMINI_API_KEY:
 
 def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
     if not GEMINI_API_KEY:
+        print("ERRO CRÍTICO: GEMINI_API_KEY não foi configurada no Render!", flush=True)
         return (
             "Olá! Seja bem-vindo à *Gráfica Atuba*! 🖨️✨\n\n"
             "Recebemos sua mensagem. Como podemos ajudar com seus materiais impressos hoje?"
@@ -53,8 +54,7 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
     """
 
     try:
-        # Utilizando o modelo atualizado
-        model = genai.GenerativeModel("gemini-2.5-flash")
+        model = genai.GenerativeModel("gemini-1.5-flash")
         
         conteudos = [
             {"role": "user", "parts": [prompt_sistema, f"Mensagem do cliente: {mensagem_cliente}"]}
@@ -71,20 +71,6 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
             return response.text
     except Exception as e:
         print(f"Erro na chamada Gemini SDK: {e}", flush=True)
-        # Fallback alternativo para REST usando o modelo recente
-        try:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
-            parts = [{"text": f"{prompt_sistema}\nMensagem do cliente: {mensagem_cliente}"}]
-            if imagem_bytes and mime_type:
-                img_b64 = base64.b64encode(imagem_bytes).decode("utf-8")
-                parts.append({"inline_data": {"mime_type": mime_type, "data": img_b64}})
-            
-            resp = requests.post(url, json={"contents": [{"parts": parts}]}, headers={"Content-Type": "application/json"}, timeout=12)
-            res_json = resp.json()
-            if "candidates" in res_json and len(res_json["candidates"]) > 0:
-                return res_json["candidates"][0]["content"]["parts"][0]["text"]
-        except Exception as err_rest:
-            print(f"Erro no fallback REST: {err_rest}", flush=True)
 
     return (
         "Olá! Seja bem-vindo à *Gráfica Atuba*! 🖨️✨\n\n"
@@ -186,3 +172,4 @@ def webhook():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
