@@ -50,7 +50,7 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
         if "candidates" in res_json and len(res_json["candidates"]) > 0:
             return res_json["candidates"][0]["content"]["parts"][0]["text"]
     except Exception as e:
-        print(f"Erro na requisição Gemini: {e}")
+        print(f"Erro na requisição Gemini: {e}", flush=True)
 
     return (
         "Olá! Seja bem-vindo à *Gráfica Atuba*! 🖨️✨\n\n"
@@ -127,21 +127,21 @@ def webhook():
         url_envio = f"{EVOLUTION_URL}/message/sendText/{EVOLUTION_INSTANCE}"
         headers = {"apikey": API_KEY, "Content-Type": "application/json"}
         
-        # Envio estruturado utilizando o remoteJid para evitar erro 400
+        # Envio estruturado
         payload_envio = {
-            "number": remote_jid,
+            "number": str(remote_jid),
             "text": resposta_bot
         }
 
         try:
             resp_envio = requests.post(url_envio, json=payload_envio, headers=headers, timeout=10)
-            print(f"Status do Envio para Evolution API: {resp_envio.status_code} - {resp_envio.text}")
+            print(f"RESPOSTA EVOLUTION: {resp_envio.status_code} - {resp_envio.text}", flush=True)
         except Exception as err_envio:
-            print(f"Erro ao enviar requisição HTTP: {err_envio}")
+            print(f"Erro ao enviar requisição HTTP: {err_envio}", flush=True)
 
         return "OK", 200
     except Exception as e:
-        print(f"Erro no processamento do webhook: {e}")
+        print(f"Erro no processamento do webhook: {e}", flush=True)
         return "OK", 200
 
 if __name__ == "__main__":
