@@ -5,9 +5,10 @@ from flask import Flask, request
 
 app = Flask(__name__)
 
-EVOLUTION_URL = os.environ.get("EVOLUTION_URL", "https://evolution-api-production-5008.up.railway.app").rstrip("/")
-EVOLUTION_INSTANCE = os.environ.get("EVOLUTION_INSTANCE", "atendimento")
-API_KEY = os.environ.get("API_KEY", "97d3f3aee5196398da165c49b3a5a8fe2d28507ac3742c356fe88c897fec9bcc")
+# Lê as variáveis de ambiente exatamente como estão no Render
+EVOLUTION_URL = os.environ.get("EVOLUTION_API_URL", "https://evolution-api-production-5008.up.railway.app").rstrip("/")
+EVOLUTION_INSTANCE = os.environ.get("EVOLUTION_INSTANCE_NAME", "grafica-atuba")
+API_KEY = os.environ.get("EVOLUTION_API_KEY", "1119905686ED-4332-97E9-C6A9D3F866A8")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
@@ -40,7 +41,8 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
         img_b64 = base64.b64encode(imagem_bytes).decode("utf-8")
         parts.append({"inline_data": {"mime_type": mime_type, "data": img_b64}})
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+    # Modelo atualizado para gemini-1.5-flash
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
     payload = {"contents": [{"parts": parts}]}
     headers = {"Content-Type": "application/json"}
 
