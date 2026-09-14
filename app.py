@@ -8,32 +8,28 @@ app = Flask(__name__)
 # Variáveis de Ambiente
 EVOLUTION_URL = os.environ.get("EVOLUTION_API_URL", "https://evolution-api-production-5008.up.railway.app").rstrip("/")
 EVOLUTION_INSTANCE = os.environ.get("EVOLUTION_INSTANCE_NAME", "grafica-atuba")
-API_KEY = os.environ.get("EVOLUTION_API_KEY", "1119905686ED-4332-97E9-C6A9D3F866A8")
+API_KEY = os.environ.get("EVOLUTION_API_KEY", "5F1D6E603161-4C5D-9DBA-7A59564694BF")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
-    if mensagem_cliente and not imagem_bytes:
-        mensagem_limpa = mensagem_cliente.strip().lower()
-        if any(s in mensagem_limpa for s in ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "eae", "salve", "hey"]) and len(mensagem_limpa) < 30:
-            return (
-                "Olá! Seja bem-vindo à *Gráfica Atuba*! 🖨️✨\n\n"
-                "Mande aqui a foto do seu material gráfico ou descreva o que você precisa (cartões de visita, panfletos, banners, adesivos) para realizarmos o seu atendimento e orçamento!"
-            )
-
     if not GEMINI_API_KEY:
         return (
             "Olá! Seja bem-vindo à *Gráfica Atuba*! 🖨️✨\n\n"
             "Recebemos sua mensagem. Como podemos ajudar com seus materiais impressos hoje?"
         )
 
+    # Prompt do sistema comercial focado nos produtos da Gráfica Atuba
     prompt_texto = f"""
-    Você é o assistente virtual de atendimento comercial da Gráfica Atuba. Seu tom é profissional, prestativo, cortês, ágil e comercial.
-    O cliente enviou a seguinte mensagem ou foto de material gráfico: "{mensagem_cliente}"
-    
-    INSTRUÇÕES RÍGIDAS:
-    1. Identifique o tipo de material gráfico na imagem ou mensagem (ex: cartões de visita, panfletos, faixas, adesivos, receituários).
-    2. Ajude o cliente fornecendo orientações comerciais claras, tirando dúvidas sobre arquivos, prazos ou estimativas de impressão.
-    3. Seja sempre muito cordial e incentive o fechamento do pedido ou o envio dos detalhes finais para produção.
+    Você é o assistente virtual de atendimento comercial da Gráfica Atuba.
+    Seu tom é profissional, prestativo, cortês, ágil e focado em vendas.
+
+    Mensagem ou foto recebida do cliente: "{mensagem_cliente}"
+
+    INSTRUÇÕES DE ATENDIMENTO:
+    1. Cumprimente o cliente cordialmente se ele estiver iniciando a conversa.
+    2. Responda diretamente às dúvidas sobre materiais gráficos (cartões de visita, panfletos, banners, adesivos, talões, pastas, envelopes, etc.).
+    3. Se o cliente perguntar sobre valores, explicações técnicas ou prazos, forneça as orientações da gráfica de forma clara e solicite os detalhes necessários (ex: quantidade, tipo de papel, acabamento) para fechar o orçamento.
+    4. Seja objetivo, direto e utilize formatação amigável (negritos e emojis moderados).
     """
 
     parts = [{"text": prompt_texto}]
@@ -55,7 +51,7 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
 
     return (
         "Olá! Seja bem-vindo à *Gráfica Atuba*! 🖨️✨\n\n"
-        "Recebemos o seu contato. Em que podemos ajudar com seus materiais impressos hoje?"
+        "Recebemos o seu contato. Como podemos ajudar com seus materiais impressos hoje?"
     )
 
 @app.route("/", methods=["GET"])
@@ -126,9 +122,12 @@ def webhook():
         resposta_bot = processar_resposta(user_message, imagem_bytes=imagem_bytes, mime_type=mime_type)
         
         url_envio = f"{EVOLUTION_URL}/message/sendText/{EVOLUTION_INSTANCE}"
-        headers = {"apikey": API_KEY, "Content-Type": "application/json"}
+        headers = {
+            "apikey": API_KEY,
+            "Authorization": f"Bearer {API_KEY}",
+            "Content-Type": "application/json"
+        }
 
-        # 1ª Tentativa: Envia pelo remoteJid original retornado pelo WhatsApp
         payload_envio = {
             "number": str(remote_jid),
             "text": resposta_bot
@@ -138,7 +137,6 @@ def webhook():
             resp_envio = requests.post(url_envio, json=payload_envio, headers=headers, timeout=10)
             print(f"ENVIO 1 (JID): {resp_envio.status_code} - {resp_envio.text}", flush=True)
 
-            # 2ª Tentativa (Fallback): Se o JID der erro (status != 200/201), tenta enviando apenas os números
             if resp_envio.status_code not in [200, 201]:
                 numero_limpo = "".join(filter(str.isdigit, str(remote_jid)))
                 payload_fallback = {
