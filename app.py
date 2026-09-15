@@ -95,6 +95,22 @@ def processar_resposta(mensagem_cliente):
         return "Olá! Nosso sistema de orçamentos está em manutenção. Um de nossos atendentes dará continuidade em instantes!"
 
     try:
+        # Chamada via Interactions API com gemini-3.6-flash recomendada pelo Google
+        response = client.interactions.create(
+            model="gemini-3.6-flash",
+            input=f"{PROMPT_SISTEMA}\n\nMensagem do cliente: {mensagem_cliente}"
+        )
+        
+        if hasattr(response, 'text') and response.text:
+            return response.text
+        elif hasattr(response, 'outputs') and response.outputs:
+            return response.outputs[0].text
+    except Exception as e:
+        print(f">>> ERRO GEMINI INTERACTIONS API: {e}", flush=True)
+
+    return "Olá! Tivemos uma oscilação rápida na consulta. Um de nossos atendentes dará continuidade por aqui em instantes!"
+
+    try:
         # Chamada padrão e robusta usando google-genai SDK
         response = client.models.generate_content(
             model="gemini-2.5-flash",
