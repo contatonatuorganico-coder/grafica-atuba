@@ -14,7 +14,7 @@ EVOLUTION_INSTANCE = os.environ.get("EVOLUTION_INSTANCE_NAME", "grafica-atuba")
 API_KEY = os.environ.get("EVOLUTION_API_KEY", "5F1D6E603161-4C5D-9DBA-7A59564694BF")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
-# Inicializa o cliente oficial google-genai (compatível com chave AQ...)
+# Inicializa o cliente oficial google-genai
 client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 # Mensagem Padrão de Boas-Vindas
@@ -92,22 +92,21 @@ def processar_resposta(mensagem_cliente):
     """
 
     try:
-        # Chamada pela Interactions API com leitura direta do texto retornado
+        # Chamada pela Interactions API usando gemini-2.5-flash
         response = client.interactions.create(
-           gemini-2.5-flash.
+            model="gemini-2.5-flash",
             input=f"{prompt_sistema}\n\nMensagem do cliente: {mensagem_cliente}"
         )
-        # Extração flexível para suportar ambos os formatos de retorno da SDK
         if hasattr(response, 'text') and response.text:
             return response.text
         elif hasattr(response, 'outputs') and response.outputs:
             return response.outputs[0].text
     except Exception as e:
         print(f">>> ERRO INTERACTIONS API: {e}", flush=True)
-        # Fallback usando o método tradicional de modelos
+        # Fallback usando a API de modelos tradicional
         try:
             response_std = client.models.generate_content(
-               model="gemini-2.5-flash"
+                model="gemini-2.5-flash",
                 contents=f"{prompt_sistema}\n\nMensagem do cliente: {mensagem_cliente}"
             )
             if response_std and response_std.text:
@@ -119,7 +118,7 @@ def processar_resposta(mensagem_cliente):
 
 @app.route("/", methods=["GET"])
 def home():
-    return "Gráfica Atuba - Webhook Operacional com Gemini 3.6 Flash (Interactions API)!"
+    return "Gráfica Atuba - Webhook Operacional com Gemini 2.5 Flash!"
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
@@ -202,3 +201,4 @@ def webhook():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
