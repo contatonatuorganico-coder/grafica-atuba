@@ -84,6 +84,8 @@ def enviar_mensagem_whatsapp(numero, texto):
     except Exception as err:
         print(f"Erro ao enviar WhatsApp: {err}", flush=True)
 
+import time
+
 def processar_resposta(mensagem_cliente):
     msg_limpa = mensagem_cliente.strip().lower()
 
@@ -95,6 +97,22 @@ def processar_resposta(mensagem_cliente):
         print(">>> ERRO CRÍTICO: GEMINI_API_KEY não configurada!", flush=True)
         return "Olá! Nosso sistema de orçamentos está em manutenção. Um de nossos atendentes dará continuidade em instantes!"
 
+    # Tentativa principal e retentativa em caso de erro 503 (Servidor Ocupado)
+    for tentativa in range(2):
+        try:
+            response = client.models.generate_content(
+                model="gemini-3.6-flash",
+                contents=f"Mensagem do cliente: {mensagem_cliente}",
+                config={"system_instruction": PROMPT_SISTEMA}
+            )
+            if response and response.text:
+                return response.text
+        except Exception as e:
+            print(f">>> ERRO GEMINI API (Tentativa {tentativa + 1}): {e}", flush=True)
+            if tentativa == 0:
+                time.sleep(1) # Aguarda 1 segundo antes de tentar novamente
+
+    return "Olá! Tivemos uma oscilação rápida na consulta. Um de nossos atendentes dará continuidade por aqui em instantes!"
     try:
         response = client.models.generate_content(
             model="gemini-3.6-flash",
