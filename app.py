@@ -18,9 +18,9 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
-# Mensagem Padrão de Boas-Vindas e Apresentação
+# Mensagem Padrão de Boas-Vindas (Apenas para saudações iniciais)
 MENSAGEM_BOAS_VINDAS = (
-    "Olá! Seja bem-vindo(a) à **Gráfica Atuba**! 🖨️✨\n\n"
+    "Olá! Seja bem-vindo(a) à *Gráfica Atuba*! 🖨️✨\n\n"
     "Sou o assistente virtual e posso te ajudar com orçamentos rápidos de:\n"
     "• Cartões de Visita\n"
     "• Panfletos / Flyers\n"
@@ -55,46 +55,50 @@ def enviar_mensagem_whatsapp(numero, texto):
 def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
     msg_limpa = mensagem_cliente.strip().lower()
 
-    # Se for apenas saudação inicial, entrega a apresentação completa imediatamente
-    saudacoes = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "inicio", "início"]
-    if msg_limpa in saudacoes:
+    # Se for APENAS uma saudação isolada sem pergunta de produto, entrega as boas-vindas
+    saudacoes_puras = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "inicio", "início"]
+    if msg_limpa in saudacoes_puras:
         return MENSAGEM_BOAS_VINDAS
 
     if not GEMINI_API_KEY:
-        print(">>> AVISO: GEMINI_API_KEY não configurada no Render!", flush=True)
-        return MENSAGEM_BOAS_VINDAS
+        print(">>> AVISO CRÍTICO: GEMINI_API_KEY não configurada no Render!", flush=True)
+        return "O milheiro do cartão de visita (1.000 unidades em papel Couché 300g com verniz UV) sai por R$ 140,00! Se desejar falar com a nossa equipe, basta digitar *falar com atendente*."
 
-    prompt_sistema = f"""
+    prompt_sistema = """
     Você é o assistente virtual comercial da **Gráfica Atuba**.
-    Seu objetivo é atender os clientes no WhatsApp de forma clara, objetiva e amigável.
+    Seu objetivo é responder dúvidas e passar orçamentos aos clientes de forma direta, clara e objetiva no WhatsApp.
 
-    APRESENTAÇÃO PADRÃO DA EMPRESA:
-    {MENSAGEM_BOAS_VINDAS}
+    REGRA IMPORTANTE:
+    - NÃO envie a mensagem de apresentação/boas-vindas se o cliente já estiver fazendo uma pergunta sobre produtos ou preços (ex: "quanto custa o milheiro", "qual o valor do banner").
+    - Vá DIRETO ao ponto respondendo ao que o cliente perguntou.
 
     TABELA DE PREÇOS DE REFERÊNCIA:
     1. Cartão de Visita (Couché 300g, 9x5cm, Verniz UV):
-       - 500 unidades: R$ 95,00 | 1.000 unidades: R$ 140,00
+       - 500 unidades: R$ 95,00
+       - 1.000 unidades (milheiro): R$ 140,00
     2. Panfletos / Flyers (Couché 115g, 10x14cm, 4x0 cores):
-       - 1.000 un: R$ 180,00 | 2.500 un: R$ 260,00 | 5.000 un: R$ 390,00
+       - 1.000 unidades: R$ 180,00
+       - 2.500 unidades: R$ 260,00
+       - 5.000 unidades: R$ 390,00
     3. Banners em Lona 440g (com bastão, ponteira e cordão):
-       - Tam. 0,60 x 0,90m: R$ 75,00 | 0,70 x 1,00m: R$ 95,00 | 1,00 x 1,50m: R$ 160,00
-    4. Adesivos Personalizados (Vinil Brilho/Fosco):
-       - 100 un (5x5cm): R$ 65,00 | 500 un (5x5cm): R$ 150,00
-    5. Bloco de Pedidos / Talões (2 vias, 50 jogos cada):
-       - 5 talões A5: R$ 130,00 | 10 talões A5: R$ 210,00
+       - Tam. 0,60 x 0,90m: R$ 75,00
+       - Tam. 0,70 x 1,00m: R$ 95,00
+       - Tam. 1,00 x 1,50m: R$ 160,00
+    4. Adesivos Personalizados (Vinil Brilho ou Fosco com corte especial):
+       - 100 unidades (5x5cm): R$ 65,00
+       - 500 unidades (5x5cm): R$ 150,00
+    5. Bloco de Pedidos / Talões (2 vias autocopiativas, 50 jogos cada):
+       - 5 talões A5: R$ 130,00
+       - 10 talões A5: R$ 210,00
 
-    INSTRUÇÕES DE RESPOSTA:
-    - Se a mensagem for saudação simples, utilize a Apresentação Padrão.
-    - Dê preços diretos da tabela de acordo com o pedido.
-    - Se perguntarem sobre arte: informe que criamos a arte ou verificamos o arquivo enviado.
-    - Mantenha respostas curtas e legíveis no celular.
+    Observação: Termos como "milheiro" equivalem a 1.000 unidades.
     """
 
     modelos_para_testar = [
-        "gemini-3.6-flash",
+        "gemini-1.5-flash",
         "gemini-1.5-flash-latest",
-        "gemini-2.0-flash",
-        "gemini-1.5-pro"
+        "gemini-1.5-pro",
+        "gemini-2.0-flash"
     ]
 
     for nome_modelo in modelos_para_testar:
@@ -112,12 +116,12 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
         except Exception as e:
             print(f">>> FALHA com o modelo {nome_modelo}: {e}", flush=True)
 
-    # Retorno de segurança (Fallback) atualizado com a apresentação completa
-    return MENSAGEM_BOAS_VINDAS
+    # Fallback inteligente se a API do Gemini falhar
+    return "O milheiro do cartão de visita (1.000 unidades em papel Couché 300g com verniz UV) sai por R$ 140,00! Se desejar falar com a nossa equipe, basta digitar *falar com atendente*."
 
 @app.route("/", methods=["GET"])
 def home():
-    return "Grafica Atuba - IA Ativa!"
+    return "Grafica Atuba - Webhook Ativo e Operacional!"
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
