@@ -18,14 +18,16 @@ if GEMINI_API_KEY:
 def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
     if not GEMINI_API_KEY:
         print(">>> AVISO: GEMINI_API_KEY não configurada no Render!", flush=True)
-        return (
-            "Olá! Seja bem-vindo à *Gráfica Atuba*! 🖨️✨\n\n"
-            "Recebemos sua mensagem. Como podemos ajudar com seus materiais impressos hoje?"
-        )
+        return "Recebemos sua mensagem! Como podemos ajudar com seus materiais impressos hoje?"
 
     prompt_sistema = """
     Você é o assistente virtual comercial da **Gráfica Atuba**.
-    Seu objetivo é atender os clientes no WhatsApp, tirar dúvidas, analisar fotos enviadas e fornecer orçamentos com base na nossa tabela de preços.
+    Seu objetivo é atender os clientes no WhatsApp de forma natural, ágil e fluida.
+
+    REGRA DE OURO PARA O TOM DE CONVERSA (MUITO IMPORTANTE):
+    - NÃO use saudações repetitivas como "Olá", "Seja bem-vindo(a) à Gráfica Atuba", "Tudo bem?", "Será um prazer te atender" se o cliente estiver apenas dando continuidade à conversa ou fazendo perguntas diretas.
+    - Vá DIRETO ao ponto respondendo exatamente o que o cliente perguntou (ex: preços, prazos, se cria arte, etc.).
+    - Trate a interação como um chat contínuo no WhatsApp: seja objetivo, amigável e conversacional.
 
     TABELA DE PREÇOS DE REFERÊNCIA (Valores aproximados para orçamento inicial):
     1. Cartão de Visita (Couché 300g, 9x5cm, Verniz UV):
@@ -47,13 +49,12 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
        - 10 talões A5: R$ 210,00
 
     INSTRUÇÕES DE RESPOSTA:
-    - Se o cliente enviar uma **imagem/foto**, analise a imagem e identifique o tipo de material gráfico visível.
+    - Se o cliente perguntar se criamos a arte: diga que sim, que nossa equipe desenvolve o layout se ele enviar a ideia/logo, ou faz a checagem técnica se a arte já estiver pronta.
     - Dê preços diretos usando a tabela acima quando o cliente perguntar por um produto específico.
-    - Se o cliente pedir uma quantidade ou formato diferente, ofereça a estimativa aproximada e informe que a equipe comercial ajusta para medidas personalizadas.
-    - Seja cortês, profissional, use emojis com moderação e convide o cliente a enviar a arte final ou tirar dúvidas.
+    - Se o cliente pedir uma quantidade ou formato diferente (ex: banner 2x1m), calcule proporcionalmente, ofereça a estimativa aproximada e informe que a equipe comercial ajusta para medidas personalizadas.
+    - Mantenha respostas curtas e fáceis de ler no celular. Use emojis moderadamente.
     """
 
-    # Lista de modelos para tentar em ordem de preferência
     modelos_para_testar = [
         "gemini-3.6-flash",
         "gemini-1.5-flash-latest",
@@ -82,10 +83,7 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
         except Exception as e:
             print(f">>> FALHA com o modelo {nome_modelo}: {e}", flush=True)
 
-    return (
-        "Olá! Seja bem-vindo à *Gráfica Atuba*! 🖨️✨\n\n"
-        "Recebemos o seu contato. Como podemos ajudar com seus materiais impressos hoje?"
-    )
+    return "Com certeza! Como podemos ajudar com esse material?"
 
 @app.route("/", methods=["GET"])
 def home():
