@@ -92,16 +92,19 @@ def processar_resposta(mensagem_cliente):
     """
 
     try:
-        # Chamada utilizando a Interactions API exigida pelo Gemini 3.6
+        # Chamada pela Interactions API com leitura direta do texto retornado
         response = client.interactions.create(
             model="gemini-3.6-flash",
             input=f"{prompt_sistema}\n\nMensagem do cliente: {mensagem_cliente}"
         )
-        if response and response.outputs:
+        # Extração flexível para suportar ambos os formatos de retorno da SDK
+        if hasattr(response, 'text') and response.text:
+            return response.text
+        elif hasattr(response, 'outputs') and response.outputs:
             return response.outputs[0].text
     except Exception as e:
         print(f">>> ERRO INTERACTIONS API: {e}", flush=True)
-        # Fallback para a rota generativa padrão caso a API altere o contrato de resposta
+        # Fallback usando o método tradicional de modelos
         try:
             response_std = client.models.generate_content(
                 model="gemini-3.6-flash",
