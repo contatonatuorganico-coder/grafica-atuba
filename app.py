@@ -107,7 +107,7 @@ def processar_resposta(mensagem_cliente):
         # Fallback usando o método tradicional de modelos
         try:
             response_std = client.models.generate_content(
-                model="gemini-3.6-flash",
+               model="gemini-2.5-flash"
                 contents=f"{prompt_sistema}\n\nMensagem do cliente: {mensagem_cliente}"
             )
             if response_std and response_std.text:
