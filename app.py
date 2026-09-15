@@ -13,12 +13,11 @@ API_KEY = os.environ.get("EVOLUTION_API_KEY", "5F1D6E603161-4C5D-9DBA-7A59564694
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 if GEMINI_API_KEY:
-    # Configura a SDK oficial do Google com a chave (formato AQ ou AIza)
     genai.configure(api_key=GEMINI_API_KEY)
 
 def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
     if not GEMINI_API_KEY:
-        print(">>> AVISO: GEMINI_API_KEY não foi configurada nas Variáveis de Ambiente!", flush=True)
+        print(">>> AVISO: GEMINI_API_KEY não configurada no Render!", flush=True)
         return (
             "Olá! Seja bem-vindo à *Gráfica Atuba*! 🖨️✨\n\n"
             "Recebemos sua mensagem. Como podemos ajudar com seus materiais impressos hoje?"
@@ -55,8 +54,8 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
     """
 
     try:
-        # Chama via SDK oficial do Google Generative AI
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        # Atualizado para o modelo suportado gemini-2.5-flash
+        model = genai.GenerativeModel("gemini-2.5-flash")
         
         conteudos = [
             {"role": "user", "parts": [prompt_sistema, f"Mensagem do cliente: {mensagem_cliente}"]}
@@ -174,4 +173,3 @@ def webhook():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
