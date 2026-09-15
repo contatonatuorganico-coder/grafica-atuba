@@ -6,6 +6,10 @@ from flask import Flask, request
 
 app = Flask(__name__)
 
+# Memória temporária para guardar os números pausados
+# Nota: Reseta se a aplicação no Render reiniciar
+ATENDIMENTO_HUMANO = set()
+
 # Variáveis de Ambiente
 EVOLUTION_URL = os.environ.get("EVOLUTION_API_URL", "https://evolution-api-production-5008.up.railway.app").rstrip("/")
 EVOLUTION_INSTANCE = os.environ.get("EVOLUTION_INSTANCE_NAME", "grafica-atuba")
@@ -14,6 +18,27 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
+
+def enviar_mensagem_whatsapp(numero, texto):
+    """Função auxiliar para enviar mensagens via Evolution API"""
+    url_envio = f"{EVOLUTION_URL}/message/sendText/{EVOLUTION_INSTANCE}"
+    headers = {
+        "apikey": API_KEY,
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload_envio = {
+        "number": str(numero),
+        "text": texto,
+        "delay": 2000
+    }
+    try:
+        resp = requests.post(url_envio, json=payload_envio, headers=headers, timeout=15)
+        if resp.status_code not in [200, 201]:
+            numero_limpo = "".join(filter(str.isdigit, str(numero)))
+            requests.post(url_envio, json={"number": numero_limpo, "text": texto, "delay": 2000}, headers=headers, timeout=15)
+    except Exception as err:
+        print(f"Erro ao enviar mensagem: {err}", flush=True)
 
 def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
     if not GEMINI_API_KEY:
@@ -87,7 +112,7 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
 
 @app.route("/", methods=["GET"])
 def home():
-    return "Grafica Atuba - Atendimento IA Ativo!"
+    return "Grafica Atuba - Atendimento IA Ativo com Comando de Pausa!"
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
@@ -106,14 +131,14 @@ def webhook():
         if not isinstance(sub_data, dict):
             sub_data = {}
 
-        if data.get("fromMe", False) or sub_data.get("key", {}).get("fromMe", False):
-            return "OK", 200
-
         key_data = sub_data.get("key", {}) if isinstance(sub_data, dict) else {}
         remote_jid = key_data.get("remoteJid", "") or data.get("remoteJid", "")
 
         if not remote_jid or "status" in str(data.get("event", "")).lower():
             return "OK", 200
+
+        # Identificar mensagem do usuário ou do próprio atendente
+        is_from_me = data.get("fromMe", False) or key_data.get("fromMe", False)
 
         message_obj = sub_data.get("message", {}) if isinstance(sub_data, dict) and "message" in sub_data else data
         if isinstance(message_obj, list) and len(message_obj) > 0:
@@ -147,32 +172,40 @@ def webhook():
             elif "body" in data:
                 user_message = str(data.get("body", ""))
 
+        msg_clean = user_message.strip().lower()
+
+        # ==========================================
+        # GERENCIAMENTO DE COMANDOS DE PAUSA/VOLTAR
+        # ==========================================
+        
+        # 1. Comando para PAUSAR (Enviado pelo atendente ou pelo cliente)
+        if msg_clean in ["#pausa", "#atendente", "falar com atendente", "falar com humano"]:
+            ATENDIMENTO_HUMANO.add(remote_jid)
+            enviar_mensagem_whatsapp(remote_jid, "⏸️ *Atendimento automático pausado.* Um de nossos atendentes dará continuidade à conversa!")
+            return "OK", 200
+
+        # 2. Comando para VOLTAR A IA (Enviado pelo atendente ou pelo cliente)
+        if msg_clean in ["#voltar", "#ia", "#bot", "voltar ia"]:
+            ATENDIMENTO_HUMANO.discard(remote_jid)
+            enviar_mensagem_whatsapp(remote_jid, "🤖 *Atendimento automático reativado!* Como posso ajudar com seus materiais impressos?")
+            return "OK", 200
+
+        # 3. Se a mensagem foi enviada pelo próprio atendente (fromMe), ignoramos para não gerar resposta da IA
+        if is_from_me:
+            return "OK", 200
+
+        # 4. Se o chat estiver pausado para este cliente, a IA NÃO responde
+        if remote_jid in ATENDIMENTO_HUMANO:
+            print(f">>> Chat {remote_jid} está pausado para atendimento humano.", flush=True)
+            return "OK", 200
+
+        # ==========================================
+
         if not user_message and not imagem_bytes:
             user_message = "Olá!"
 
         resposta_bot = processar_resposta(user_message, imagem_bytes=imagem_bytes, mime_type=mime_type)
-
-        url_envio = f"{EVOLUTION_URL}/message/sendText/{EVOLUTION_INSTANCE}"
-        headers = {
-            "apikey": API_KEY,
-            "Authorization": f"Bearer {API_KEY}",
-            "Content-Type": "application/json"
-        }
-
-        # ADICIONADO O CAMPO "delay" (3000ms = 3 segundos de "Digitando...")
-        payload_envio = {
-            "number": str(remote_jid),
-            "text": resposta_bot,
-            "delay": 3000
-        }
-
-        try:
-            resp_envio = requests.post(url_envio, json=payload_envio, headers=headers, timeout=15)
-            if resp_envio.status_code not in [200, 201]:
-                numero_limpo = "".join(filter(str.isdigit, str(remote_jid)))
-                requests.post(url_envio, json={"number": numero_limpo, "text": resposta_bot, "delay": 3000}, headers=headers, timeout=15)
-        except Exception as err_envio:
-            print(f"Erro no envio da resposta: {err_envio}", flush=True)
+        enviar_mensagem_whatsapp(remote_jid, resposta_bot)
 
         return "OK", 200
     except Exception as e:
@@ -182,3 +215,4 @@ def webhook():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
