@@ -13,7 +13,7 @@ EVOLUTION_INSTANCE = os.environ.get("EVOLUTION_INSTANCE_NAME", "grafica-atuba")
 API_KEY = os.environ.get("EVOLUTION_API_KEY", "5F1D6E603161-4C5D-9DBA-7A59564694BF")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
-# Mensagem Padrão de Boas-Vindas (Apenas saudações puras)
+# Mensagem Padrão de Boas-Vindas
 MENSAGEM_BOAS_VINDAS = (
     "Olá! Seja bem-vindo(a) à *Gráfica Atuba*! 🖨️✨\n\n"
     "Sou o assistente virtual e posso te ajudar com orçamentos rápidos de:\n"
@@ -83,12 +83,12 @@ def processar_resposta(mensagem_cliente):
        - 10 talões A5: R$ 210,00
 
     REGRAS DE RESPOSTA:
-    - Responda apenas sobre o item específico que o cliente perguntou (ex: se pediu banner, mande os tamanhos e preços dos banners).
-    - Se o cliente solicitar produtos com especificações fora da tabela, informe as opções padrão e avise que a equipe pode fazer orçamentos sob medida.
+    - Responda apenas sobre o item específico que o cliente perguntou.
+    - Se o cliente solicitar produtos fora da tabela, informe os padrões e avise que a equipe pode fazer orçamentos sob medida.
     """
 
-    # Chamada direta via REST API (Evita bugs de bibliotecas Python)
-    url_gemini = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    # URL oficial v1 compatível com o modelo gemini-2.5-flash e chaves AQ
+    url_gemini = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
     
     payload = {
         "contents": [
@@ -115,7 +115,7 @@ def processar_resposta(mensagem_cliente):
 
 @app.route("/", methods=["GET"])
 def home():
-    return "Gráfica Atuba - Webhook Operacional com REST API!"
+    return "Gráfica Atuba - Webhook Operacional com Endpoint v1!"
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
@@ -164,7 +164,7 @@ def webhook():
 
         msg_clean = user_message.strip().lower()
 
-        # Comandos para pausar/despausar
+        # Comandos de Pausa e Retorno
         gatilhos_pausa = ["#pausa", "#atendente", "#humano", "#pausar"]
         gatilhos_retorno = ["#voltar", "#ia", "#bot", "#ativar"]
 
