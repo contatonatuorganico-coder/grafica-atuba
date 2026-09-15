@@ -53,25 +53,34 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
     - Seja cortês, profissional, use emojis com moderação e convide o cliente a enviar a arte final ou tirar dúvidas.
     """
 
-    try:
-        # Atualizado para o modelo suportado gemini-2.5-flash
-        model = genai.GenerativeModel("gemini-2.5-flash")
-        
-        conteudos = [
-            {"role": "user", "parts": [prompt_sistema, f"Mensagem do cliente: {mensagem_cliente}"]}
-        ]
+    # Lista de modelos para tentar em ordem de preferência
+    modelos_para_testar = [
+        "gemini-3.6-flash",
+        "gemini-1.5-flash-latest",
+        "gemini-2.0-flash",
+        "gemini-1.5-pro"
+    ]
 
-        if imagem_bytes and mime_type:
-            conteudos[0]["parts"].append({
-                "mime_type": mime_type,
-                "data": imagem_bytes
-            })
+    for nome_modelo in modelos_para_testar:
+        try:
+            model = genai.GenerativeModel(nome_modelo)
+            
+            conteudos = [
+                {"role": "user", "parts": [prompt_sistema, f"Mensagem do cliente: {mensagem_cliente}"]}
+            ]
 
-        response = model.generate_content(conteudos)
-        if response and response.text:
-            return response.text
-    except Exception as e:
-        print(f">>> ERRO EXATO NA CHAMADA GEMINI: {e}", flush=True)
+            if imagem_bytes and mime_type:
+                conteudos[0]["parts"].append({
+                    "mime_type": mime_type,
+                    "data": imagem_bytes
+                })
+
+            response = model.generate_content(conteudos)
+            if response and response.text:
+                print(f">>> SUCESSO com o modelo: {nome_modelo}", flush=True)
+                return response.text
+        except Exception as e:
+            print(f">>> FALHA com o modelo {nome_modelo}: {e}", flush=True)
 
     return (
         "Olá! Seja bem-vindo à *Gráfica Atuba*! 🖨️✨\n\n"
