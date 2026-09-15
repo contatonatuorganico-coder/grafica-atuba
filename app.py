@@ -5,7 +5,7 @@ from google import genai
 
 app = Flask(__name__)
 
-# Memória temporária para guardar os números com atendimento pausado
+# Memória temporária para números pausados
 ATENDIMENTO_HUMANO = set()
 
 # Variáveis de Ambiente
@@ -14,10 +14,10 @@ EVOLUTION_INSTANCE = os.environ.get("EVOLUTION_INSTANCE_NAME", "grafica-atuba")
 API_KEY = os.environ.get("EVOLUTION_API_KEY", "5F1D6E603161-4C5D-9DBA-7A59564694BF")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
-# Inicializa o cliente oficial da biblioteca google-genai
+# Inicializa o cliente aceitando nativamente a nova chave Auth (AQ...)
 client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
-# Mensagem Padrão de Boas-Vindas
+# Mensagem Padrão de Boas-Vindas (Apenas saudações puras)
 MENSAGEM_BOAS_VINDAS = (
     "Olá! Seja bem-vindo(a) à *Gráfica Atuba*! 🖨️✨\n\n"
     "Sou o assistente virtual e posso te ajudar com orçamentos rápidos de:\n"
@@ -41,31 +41,31 @@ def enviar_mensagem_whatsapp(numero, texto):
     payload_envio = {
         "number": str(numero),
         "text": texto,
-        "delay": 1500
+        "delay": 1200
     }
     try:
         resp = requests.post(url_envio, json=payload_envio, headers=headers, timeout=15)
         if resp.status_code not in [200, 201]:
             numero_limpo = "".join(filter(str.isdigit, str(numero)))
-            requests.post(url_envio, json={"number": numero_limpo, "text": texto, "delay": 1500}, headers=headers, timeout=15)
+            requests.post(url_envio, json={"number": numero_limpo, "text": texto, "delay": 1200}, headers=headers, timeout=15)
     except Exception as err:
-        print(f"Erro ao enviar mensagem via WhatsApp: {err}", flush=True)
+        print(f"Erro ao enviar WhatsApp: {err}", flush=True)
 
 def processar_resposta(mensagem_cliente):
     msg_limpa = mensagem_cliente.strip().lower()
 
-    # Se for uma saudação isolada, envia a mensagem de boas-vindas
+    # Saudações puras entregam a mensagem completa
     saudacoes_puras = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "inicio", "início"]
     if msg_limpa in saudacoes_puras:
         return MENSAGEM_BOAS_VINDAS
 
     if not client:
-        print(">>> ERRO CRÍTICO: GEMINI_API_KEY não configurada no Render!", flush=True)
-        return "Olá! Um de nossos atendentes já vai responder você por aqui em instantes!"
+        print(">>> ERRO: GEMINI_API_KEY não localizada nas variáveis!", flush=True)
+        return "Olá! Nosso sistema de orçamentos está em manutenção. Um atendente te responderá em breve!"
 
     prompt_sistema = """
     Você é o assistente virtual comercial da **Gráfica Atuba**.
-    Seu objetivo é passar orçamentos e tirar dúvidas dos clientes de forma direta, clara e sucinta.
+    Responda o cliente no WhatsApp de forma natural, direta e fluida, sem repetir saudações longas.
 
     TABELA DE PREÇOS DE REFERÊNCIA:
     1. Cartão de Visita (Couché 300g, 9x5cm, Verniz UV total frente):
@@ -86,27 +86,30 @@ def processar_resposta(mensagem_cliente):
        - 5 talões A5: R$ 130,00
        - 10 talões A5: R$ 210,00
 
-    INSTRUÇÕES:
-    - Responda estritamente ao que o cliente perguntou (se perguntar de banner, fale apenas do banner).
-    - Não repita saudações longas nem apresentações se o cliente já fez uma pergunta direta.
+    REGRAS DE RESPOSTA:
+    - Responda apenas sobre o item específico que o cliente perguntou (ex: se pediu banner, mande os tamanhos e preços dos banners).
+    - Se o cliente solicitar produtos com especificações fora da tabela, informe as opções padrão e avise que a equipe pode fazer orçamentos sob medida.
     """
 
-    try:
-        response = client.models.generate_content(
-            model="gemini-3.6-flash",
-            contents=f"{prompt_sistema}\n\nMensagem do cliente: {mensagem_cliente}"
-        )
-        if response and response.text:
-            return response.text
-    except Exception as e:
-        print(f">>> ERRO AO CHAMAR O GEMINI 3.6 FLASH: {e}", flush=True)
+    # Modelos compatíveis com a nova Auth Key (AQ...)
+    modelos = ["gemini-2.5-flash", "gemini-1.5-flash"]
+    
+    for mod in modelos:
+        try:
+            response = client.models.generate_content(
+                model=mod,
+                contents=f"{prompt_sistema}\n\nMensagem do cliente: {mensagem_cliente}"
+            )
+            if response and response.text:
+                return response.text
+        except Exception as e:
+            print(f">>> FALHA COM O MODELO {mod}: {e}", flush=True)
 
-    # Resposta genérica segura apenas caso aconteça queda de conexão na API
-    return "Olá! Recebemos sua mensagem. Um de nossos atendentes dará continuidade ao seu orçamento em instantes!"
+    return "Olá! Tivemos uma oscilação na consulta de preços. Um de nossos atendentes dará continuidade por aqui!"
 
 @app.route("/", methods=["GET"])
 def home():
-    return "Gráfica Atuba - Bot Ativo com Gemini 3.6 Flash!"
+    return "Gráfica Atuba - Webhook Operacional com Chave AQ!"
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
@@ -155,15 +158,13 @@ def webhook():
 
         msg_clean = user_message.strip().lower()
 
-        # ==========================================
-        # COMANDOS DIRETO DE PAUSA E REATIVAÇÃO
-        # ==========================================
+        # Gatilhos exatos para pausar/despausar
         gatilhos_pausa = ["#pausa", "#atendente", "#humano", "#pausar"]
         gatilhos_retorno = ["#voltar", "#ia", "#bot", "#ativar"]
 
         if msg_clean in gatilhos_pausa:
             ATENDIMENTO_HUMANO.add(remote_jid)
-            enviar_mensagem_whatsapp(remote_jid, "⏸️ *Atendimento automático pausado.* Um de nossos atendentes responderá você em instantes!")
+            enviar_mensagem_whatsapp(remote_jid, "⏸️ *Atendimento automático pausado.* Um de nossos atendentes responderá em instantes!")
             return "OK", 200
 
         if msg_clean in gatilhos_retorno:
@@ -179,8 +180,6 @@ def webhook():
 
         if not user_message:
             return "OK", 200
-
-        # ==========================================
 
         resposta_bot = processar_resposta(user_message)
         enviar_mensagem_whatsapp(remote_jid, resposta_bot)
