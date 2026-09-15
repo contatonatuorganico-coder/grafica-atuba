@@ -1,6 +1,7 @@
 import os
 import requests
 from flask import Flask, request
+from google import genai
 
 app = Flask(__name__)
 
@@ -12,6 +13,9 @@ EVOLUTION_URL = os.environ.get("EVOLUTION_API_URL", "https://evolution-api-produ
 EVOLUTION_INSTANCE = os.environ.get("EVOLUTION_INSTANCE_NAME", "grafica-atuba")
 API_KEY = os.environ.get("EVOLUTION_API_KEY", "5F1D6E603161-4C5D-9DBA-7A59564694BF")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+
+# Inicializa o cliente oficial google-genai
+client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 # Mensagem Padrão de Boas-Vindas
 MENSAGEM_BOAS_VINDAS = (
@@ -27,7 +31,7 @@ MENSAGEM_BOAS_VINDAS = (
 )
 
 def enviar_mensagem_whatsapp(numero, texto):
-    """Função auxiliar para envio de mensagens via Evolution API"""
+    """Função para envio via Evolution API"""
     url_envio = f"{EVOLUTION_URL}/message/sendText/{EVOLUTION_INSTANCE}"
     headers = {
         "apikey": API_KEY,
@@ -50,18 +54,18 @@ def enviar_mensagem_whatsapp(numero, texto):
 def processar_resposta(mensagem_cliente):
     msg_limpa = mensagem_cliente.strip().lower()
 
-    # Saudações puras entregam a mensagem de boas-vindas
+    # Se for apenas saudação, envia boas-vindas
     saudacoes_puras = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "inicio", "início"]
     if msg_limpa in saudacoes_puras:
         return MENSAGEM_BOAS_VINDAS
 
-    if not GEMINI_API_KEY:
-        print(">>> ERRO: GEMINI_API_KEY não configurada no Render!", flush=True)
-        return "Olá! Nosso sistema de orçamentos está em manutenção. Um atendente te responderá em breve!"
+    if not client:
+        print(">>> ERRO: GEMINI_API_KEY não localizada!", flush=True)
+        return "Olá! Nosso assistente está indisponível no momento. Um de nossos atendentes falará com você em breve!"
 
     prompt_sistema = """
     Você é o assistente virtual comercial da **Gráfica Atuba**.
-    Responda o cliente no WhatsApp de forma natural, direta e fluida, sem repetir saudações longas.
+    Sua missão é atender clientes no WhatsApp de forma natural, simpática e fluida.
 
     TABELA DE PREÇOS DE REFERÊNCIA:
     1. Cartão de Visita (Couché 300g, 9x5cm, Verniz UV total frente):
@@ -82,40 +86,26 @@ def processar_resposta(mensagem_cliente):
        - 5 talões A5: R$ 130,00
        - 10 talões A5: R$ 210,00
 
-    REGRAS DE RESPOSTA:
-    - Responda apenas sobre o item específico que o cliente perguntou.
-    - Se o cliente solicitar produtos fora da tabela, informe os padrões e avise que a equipe pode fazer orçamentos sob medida.
+    REGRAS DE CONVERSA:
+    - Seja direto e responda EXATAMENTE sobre o produto perguntado. Exemplo: se o cliente pedir "cartão de visita", envie os valores do cartão de visita.
+    - Não repita o menu de boas-vindas se o cliente já especificou o produto.
     """
 
-    # URL oficial v1 com gemini-1.5-flash (Cota gratuita de 1.500 msgs/dia)
-    url_gemini = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
-    
-    payload = {
-        "contents": [
-            {
-                "parts": [
-                    {"text": f"{prompt_sistema}\n\nMensagem do cliente: {mensagem_cliente}"}
-                ]
-            }
-        ]
-    }
-
     try:
-        res = requests.post(url_gemini, json=payload, timeout=15)
-        if res.status_code == 200:
-            dados = res.json()
-            texto_resposta = dados['candidates'][0]['content']['parts'][0]['text']
-            return texto_resposta
-        else:
-            print(f">>> ERRO HTTP GEMINI ({res.status_code}): {res.text}", flush=True)
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=f"{prompt_sistema}\n\nMensagem do cliente: {mensagem_cliente}"
+        )
+        if response and response.text:
+            return response.text
     except Exception as e:
-        print(f">>> FALHA NA REQUISIÇÃO REST: {e}", flush=True)
+        print(f">>> ERRO API GEMINI: {e}", flush=True)
 
-    return "Olá! Tivemos uma oscilação rápida na consulta. Um de nossos atendentes dará continuidade por aqui em instantes!"
+    return "Olá! Recebemos sua mensagem. Um de nossos atendentes dará continuidade ao seu orçamento em instantes!"
 
 @app.route("/", methods=["GET"])
 def home():
-    return "Gráfica Atuba - Webhook Operacional com Gemini 1.5 Flash!"
+    return "Gráfica Atuba - Bot Gratuito Ativo!"
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
@@ -164,13 +154,12 @@ def webhook():
 
         msg_clean = user_message.strip().lower()
 
-        # Comandos de Pausa e Retorno
         gatilhos_pausa = ["#pausa", "#atendente", "#humano", "#pausar"]
         gatilhos_retorno = ["#voltar", "#ia", "#bot", "#ativar"]
 
         if msg_clean in gatilhos_pausa:
             ATENDIMENTO_HUMANO.add(remote_jid)
-            enviar_mensagem_whatsapp(remote_jid, "⏸️ *Atendimento automático pausado.* Um de nossos atendentes responderá em instantes!")
+            enviar_mensagem_whatsapp(remote_jid, "⏸️ *Atendimento automático pausado.* Um de nossos atendentes continuará por aqui!")
             return "OK", 200
 
         if msg_clean in gatilhos_retorno:
