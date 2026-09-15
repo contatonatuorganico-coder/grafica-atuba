@@ -7,7 +7,6 @@ from flask import Flask, request
 app = Flask(__name__)
 
 # Memória temporária para guardar os números pausados
-# Nota: Reseta se a aplicação no Render reiniciar
 ATENDIMENTO_HUMANO = set()
 
 # Variáveis de Ambiente
@@ -43,22 +42,29 @@ def enviar_mensagem_whatsapp(numero, texto):
 def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
     if not GEMINI_API_KEY:
         print(">>> AVISO: GEMINI_API_KEY não configurada no Render!", flush=True)
-        return "Recebemos sua mensagem! Como podemos ajudar com seus materiais impressos hoje?"
+        return "Olá! Como podemos ajudar com seus materiais impressos na Gráfica Atuba hoje?\n\n(Se preferir falar com a nossa equipe, basta digitar *falar com atendente*)."
 
     prompt_sistema = """
     Você é o assistente virtual comercial da **Gráfica Atuba**.
-    Seu objetivo é atender os clientes no WhatsApp de forma natural, ágil e fluida.
+    Seu objetivo é atender os clientes no WhatsApp de forma clara, prestativa e objetiva.
 
-    REGRA DE OURO PARA O TOM DE CONVERSA (MUITO IMPORTANTE):
-    - NÃO use saudações repetitivas como "Olá", "Seja bem-vindo(a) à Gráfica Atuba", "Tudo bem?", "Será um prazer te atender" se o cliente estiver apenas dando continuidade à conversa ou fazendo perguntas diretas.
-    - Vá DIRETO ao ponto respondendo exatamente o que o cliente perguntou (ex: preços, prazos, se cria arte, etc.).
-    - Trate a interação como um chat contínuo no WhatsApp: seja objetivo, amigável e conversacional.
+    REGRA DE APRESENTAÇÃO E OPÇÃO DE ATENDENTE:
+    - Se for a primeira interação do cliente ou uma saudação inicial (ex: "Oi", "Olá", "Boa tarde"):
+      Apresente-se brevemente e informe que, se ele desejar, pode falar direto com a equipe digitando "falar com atendente".
+      Exemplo de postura inicial:
+      "Olá! Seja bem-vindo(a) à Gráfica Atuba! 🖨️✨
+      Posso te ajudar com orçamentos de cartões de visita, panfletos, banners, adesivos e outros materiais.
+      Como posso te ajudar hoje?
+      (Se preferir falar direto com um de nossos atendentes, basta digitar *falar com atendente* a qualquer momento)."
 
-    TABELA DE PREÇOS DE REFERÊNCIA (Valores aproximados para orçamento inicial):
+    - Se a conversa já estiver em andamento sobre orçamentos:
+      Vá direto ao ponto e não repita saudações longas. Trate como um chat contínuo.
+
+    TABELA DE PREÇOS DE REFERÊNCIA:
     1. Cartão de Visita (Couché 300g, 9x5cm, Verniz UV):
        - 500 unidades: R$ 95,00
        - 1.000 unidades: R$ 140,00
-    2. Panfletos / Flyings (Couché 115g, 10x14cm, 4x0 cores):
+    2. Panfletos / Flyers (Couché 115g, 10x14cm, 4x0 cores):
        - 1.000 unidades: R$ 180,00
        - 2.500 unidades: R$ 260,00
        - 5.000 unidades: R$ 390,00
@@ -69,15 +75,14 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
     4. Adesivos Personalizados (Vinil Brilho ou Fosco com corte especial):
        - 100 unidades (5x5cm): R$ 65,00
        - 500 unidades (5x5cm): R$ 150,00
-    5. Block de Pedidos / Talões (2 vias autocopiativas, 50 jogos cada):
+    5. Bloco de Pedidos / Talões (2 vias autocopiativas, 50 jogos cada):
        - 5 talões A5: R$ 130,00
        - 10 talões A5: R$ 210,00
 
-    INSTRUÇÕES DE RESPOSTA:
-    - Se o cliente perguntar se criamos a arte: diga que sim, que nossa equipe desenvolve o layout se ele enviar a ideia/logo, ou faz a checagem técnica se a arte já estiver pronta.
-    - Dê preços diretos usando a tabela acima quando o cliente perguntar por um produto específico.
-    - Se o cliente pedir uma quantidade ou formato diferente (ex: banner 2x1m), calcule proporcionalmente, ofereça a estimativa aproximada e informe que a equipe comercial ajusta para medidas personalizadas.
-    - Mantenha respostas curtas e fáceis de ler no celular. Use emojis moderadamente.
+    INSTRUÇÕES GERAIS:
+    - Se o cliente perguntar se criamos a arte: diga que sim, nossa equipe desenvolve o layout se enviar a ideia/logo ou faz a checagem se a arte já estiver pronta.
+    - Dê preços diretos usando a tabela acima.
+    - Respostas curtas e organizadas para facilitar a leitura no celular.
     """
 
     modelos_para_testar = [
@@ -108,11 +113,11 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
         except Exception as e:
             print(f">>> FALHA com o modelo {nome_modelo}: {e}", flush=True)
 
-    return "Com certeza! Como podemos ajudar com esse material?"
+    return "Com certeza! Como podemos ajudar com esse material? (Se preferir falar com nossa equipe, digite *falar com atendente*)."
 
 @app.route("/", methods=["GET"])
 def home():
-    return "Grafica Atuba - Atendimento IA Ativo com Comando de Pausa!"
+    return "Grafica Atuba - IA Ativa com Menu de Triagem Humana!"
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
@@ -137,7 +142,6 @@ def webhook():
         if not remote_jid or "status" in str(data.get("event", "")).lower():
             return "OK", 200
 
-        # Identificar mensagem do usuário ou do próprio atendente
         is_from_me = data.get("fromMe", False) or key_data.get("fromMe", False)
 
         message_obj = sub_data.get("message", {}) if isinstance(sub_data, dict) and "message" in sub_data else data
@@ -155,7 +159,7 @@ def webhook():
                 user_message = message_obj["extendedTextMessage"].get("text", "")
             elif "imageMessage" in message_obj and isinstance(message_obj["imageMessage"], dict):
                 img_data = message_obj["imageMessage"]
-                user_message = img_data.get("caption", "Foto enviada para orçamento de impressão")
+                user_message = img_data.get("caption", "Foto enviada para orçamento")
                 if "base64" in img_data:
                     try:
                         imagem_bytes = base64.b64decode(img_data["base64"])
@@ -178,19 +182,25 @@ def webhook():
         # GERENCIAMENTO DE COMANDOS DE PAUSA/VOLTAR
         # ==========================================
         
-        # 1. Comando para PAUSAR (Enviado pelo atendente ou pelo cliente)
-        if msg_clean in ["#pausa", "#atendente", "falar com atendente", "falar com humano"]:
+        gatilhos_pausa = [
+            "#pausa", "#pausar", "#atendente", "#humano",
+            "falar com atendente", "falar com humano", "atendente", "humano",
+            "quer falar com atendente", "quero falar com atendente", "falar com uma pessoa"
+        ]
+
+        # 1. Se o cliente ou o dono pedir pausa
+        if msg_clean in gatilhos_pausa:
             ATENDIMENTO_HUMANO.add(remote_jid)
-            enviar_mensagem_whatsapp(remote_jid, "⏸️ *Atendimento automático pausado.* Um de nossos atendentes dará continuidade à conversa!")
+            enviar_mensagem_whatsapp(remote_jid, "⏸️ *Atendimento automático pausado.* Um de nossos atendentes dará continuidade ao seu atendimento em instantes!")
             return "OK", 200
 
-        # 2. Comando para VOLTAR A IA (Enviado pelo atendente ou pelo cliente)
+        # 2. Comando para REATIVAR a IA (enviado pelo dono/atendente)
         if msg_clean in ["#voltar", "#ia", "#bot", "voltar ia"]:
             ATENDIMENTO_HUMANO.discard(remote_jid)
-            enviar_mensagem_whatsapp(remote_jid, "🤖 *Atendimento automático reativado!* Como posso ajudar com seus materiais impressos?")
+            enviar_mensagem_whatsapp(remote_jid, "🤖 *Atendimento automático reativado!* Como posso te ajudar?")
             return "OK", 200
 
-        # 3. Se a mensagem foi enviada pelo próprio atendente (fromMe), ignoramos para não gerar resposta da IA
+        # 3. Se a mensagem foi enviada pelo próprio atendente (fromMe), ignora
         if is_from_me:
             return "OK", 200
 
@@ -199,10 +209,12 @@ def webhook():
             print(f">>> Chat {remote_jid} está pausado para atendimento humano.", flush=True)
             return "OK", 200
 
-        # ==========================================
-
+        # 5. Ignora mensagens vazias ou de contato/ligação para não duplicar
         if not user_message and not imagem_bytes:
-            user_message = "Olá!"
+            print(">>> Mensagem sem texto/imagem ignorada.", flush=True)
+            return "OK", 200
+
+        # ==========================================
 
         resposta_bot = processar_resposta(user_message, imagem_bytes=imagem_bytes, mime_type=mime_type)
         enviar_mensagem_whatsapp(remote_jid, resposta_bot)
