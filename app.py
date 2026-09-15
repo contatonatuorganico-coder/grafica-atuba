@@ -18,6 +18,19 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
+# Mensagem Padrão de Boas-Vindas e Apresentação
+MENSAGEM_BOAS_VINDAS = (
+    "Olá! Seja bem-vindo(a) à **Gráfica Atuba**! 🖨️✨\n\n"
+    "Sou o assistente virtual e posso te ajudar com orçamentos rápidos de:\n"
+    "• Cartões de Visita\n"
+    "• Panfletos / Flyers\n"
+    "• Banners em Lona\n"
+    "• Adesivos Personalizados\n"
+    "• Blocos de Pedidos / Talões\n\n"
+    "Como posso te ajudar hoje?\n"
+    "*(Se preferir falar direto com nossa equipe, basta digitar *falar com atendente* a qualquer momento).*"
+)
+
 def enviar_mensagem_whatsapp(numero, texto):
     """Função auxiliar para enviar mensagens via Evolution API"""
     url_envio = f"{EVOLUTION_URL}/message/sendText/{EVOLUTION_INSTANCE}"
@@ -40,49 +53,41 @@ def enviar_mensagem_whatsapp(numero, texto):
         print(f"Erro ao enviar mensagem: {err}", flush=True)
 
 def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
+    msg_limpa = mensagem_cliente.strip().lower()
+
+    # Se for apenas saudação inicial, entrega a apresentação completa imediatamente
+    saudacoes = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "inicio", "início"]
+    if msg_limpa in saudacoes:
+        return MENSAGEM_BOAS_VINDAS
+
     if not GEMINI_API_KEY:
         print(">>> AVISO: GEMINI_API_KEY não configurada no Render!", flush=True)
-        return "Olá! Como podemos ajudar com seus materiais impressos na Gráfica Atuba hoje?\n\n(Se preferir falar com a nossa equipe, basta digitar *falar com atendente*)."
+        return MENSAGEM_BOAS_VINDAS
 
-    prompt_sistema = """
+    prompt_sistema = f"""
     Você é o assistente virtual comercial da **Gráfica Atuba**.
-    Seu objetivo é atender os clientes no WhatsApp de forma clara, prestativa e objetiva.
+    Seu objetivo é atender os clientes no WhatsApp de forma clara, objetiva e amigável.
 
-    REGRA DE APRESENTAÇÃO E OPÇÃO DE ATENDENTE:
-    - Se for a primeira interação do cliente ou uma saudação inicial (ex: "Oi", "Olá", "Boa tarde"):
-      Apresente-se brevemente e informe que, se ele desejar, pode falar direto com a equipe digitando "falar com atendente".
-      Exemplo de postura inicial:
-      "Olá! Seja bem-vindo(a) à Gráfica Atuba! 🖨️✨
-      Posso te ajudar com orçamentos de cartões de visita, panfletos, banners, adesivos e outros materiais.
-      Como posso te ajudar hoje?
-      (Se preferir falar direto com um de nossos atendentes, basta digitar *falar com atendente* a qualquer momento)."
-
-    - Se a conversa já estiver em andamento sobre orçamentos:
-      Vá direto ao ponto e não repita saudações longas. Trate como um chat contínuo.
+    APRESENTAÇÃO PADRÃO DA EMPRESA:
+    {MENSAGEM_BOAS_VINDAS}
 
     TABELA DE PREÇOS DE REFERÊNCIA:
     1. Cartão de Visita (Couché 300g, 9x5cm, Verniz UV):
-       - 500 unidades: R$ 95,00
-       - 1.000 unidades: R$ 140,00
+       - 500 unidades: R$ 95,00 | 1.000 unidades: R$ 140,00
     2. Panfletos / Flyers (Couché 115g, 10x14cm, 4x0 cores):
-       - 1.000 unidades: R$ 180,00
-       - 2.500 unidades: R$ 260,00
-       - 5.000 unidades: R$ 390,00
-    3. Banners em Lona 440g (com acabamento em bastão, ponteira e cordão):
-       - Tam. 0,60 x 0,90m: R$ 75,00
-       - Tam. 0,70 x 1,00m: R$ 95,00
-       - Tam. 1,00 x 1,50m: R$ 160,00
-    4. Adesivos Personalizados (Vinil Brilho ou Fosco com corte especial):
-       - 100 unidades (5x5cm): R$ 65,00
-       - 500 unidades (5x5cm): R$ 150,00
-    5. Bloco de Pedidos / Talões (2 vias autocopiativas, 50 jogos cada):
-       - 5 talões A5: R$ 130,00
-       - 10 talões A5: R$ 210,00
+       - 1.000 un: R$ 180,00 | 2.500 un: R$ 260,00 | 5.000 un: R$ 390,00
+    3. Banners em Lona 440g (com bastão, ponteira e cordão):
+       - Tam. 0,60 x 0,90m: R$ 75,00 | 0,70 x 1,00m: R$ 95,00 | 1,00 x 1,50m: R$ 160,00
+    4. Adesivos Personalizados (Vinil Brilho/Fosco):
+       - 100 un (5x5cm): R$ 65,00 | 500 un (5x5cm): R$ 150,00
+    5. Bloco de Pedidos / Talões (2 vias, 50 jogos cada):
+       - 5 talões A5: R$ 130,00 | 10 talões A5: R$ 210,00
 
-    INSTRUÇÕES GERAIS:
-    - Se o cliente perguntar se criamos a arte: diga que sim, nossa equipe desenvolve o layout se enviar a ideia/logo ou faz a checagem se a arte já estiver pronta.
-    - Dê preços diretos usando a tabela acima.
-    - Respostas curtas e organizadas para facilitar a leitura no celular.
+    INSTRUÇÕES DE RESPOSTA:
+    - Se a mensagem for saudação simples, utilize a Apresentação Padrão.
+    - Dê preços diretos da tabela de acordo com o pedido.
+    - Se perguntarem sobre arte: informe que criamos a arte ou verificamos o arquivo enviado.
+    - Mantenha respostas curtas e legíveis no celular.
     """
 
     modelos_para_testar = [
@@ -95,16 +100,10 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
     for nome_modelo in modelos_para_testar:
         try:
             model = genai.GenerativeModel(nome_modelo)
-            
-            conteudos = [
-                {"role": "user", "parts": [prompt_sistema, f"Mensagem do cliente: {mensagem_cliente}"]}
-            ]
+            conteudos = [{"role": "user", "parts": [prompt_sistema, f"Mensagem do cliente: {mensagem_cliente}"]}]
 
             if imagem_bytes and mime_type:
-                conteudos[0]["parts"].append({
-                    "mime_type": mime_type,
-                    "data": imagem_bytes
-                })
+                conteudos[0]["parts"].append({"mime_type": mime_type, "data": imagem_bytes})
 
             response = model.generate_content(conteudos)
             if response and response.text:
@@ -113,11 +112,12 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
         except Exception as e:
             print(f">>> FALHA com o modelo {nome_modelo}: {e}", flush=True)
 
-    return "Com certeza! Como podemos ajudar com esse material? (Se preferir falar com nossa equipe, digite *falar com atendente*)."
+    # Retorno de segurança (Fallback) atualizado com a apresentação completa
+    return MENSAGEM_BOAS_VINDAS
 
 @app.route("/", methods=["GET"])
 def home():
-    return "Grafica Atuba - IA Ativa com Menu de Triagem Humana!"
+    return "Grafica Atuba - IA Ativa!"
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
@@ -188,30 +188,23 @@ def webhook():
             "quer falar com atendente", "quero falar com atendente", "falar com uma pessoa"
         ]
 
-        # 1. Se o cliente ou o dono pedir pausa
         if msg_clean in gatilhos_pausa:
             ATENDIMENTO_HUMANO.add(remote_jid)
             enviar_mensagem_whatsapp(remote_jid, "⏸️ *Atendimento automático pausado.* Um de nossos atendentes dará continuidade ao seu atendimento em instantes!")
             return "OK", 200
 
-        # 2. Comando para REATIVAR a IA (enviado pelo dono/atendente)
         if msg_clean in ["#voltar", "#ia", "#bot", "voltar ia"]:
             ATENDIMENTO_HUMANO.discard(remote_jid)
             enviar_mensagem_whatsapp(remote_jid, "🤖 *Atendimento automático reativado!* Como posso te ajudar?")
             return "OK", 200
 
-        # 3. Se a mensagem foi enviada pelo próprio atendente (fromMe), ignora
         if is_from_me:
             return "OK", 200
 
-        # 4. Se o chat estiver pausado para este cliente, a IA NÃO responde
         if remote_jid in ATENDIMENTO_HUMANO:
-            print(f">>> Chat {remote_jid} está pausado para atendimento humano.", flush=True)
             return "OK", 200
 
-        # 5. Ignora mensagens vazias ou de contato/ligação para não duplicar
         if not user_message and not imagem_bytes:
-            print(">>> Mensagem sem texto/imagem ignorada.", flush=True)
             return "OK", 200
 
         # ==========================================
@@ -227,4 +220,3 @@ def webhook():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
