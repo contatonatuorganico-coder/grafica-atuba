@@ -159,16 +159,18 @@ def webhook():
             "Content-Type": "application/json"
         }
 
+        # ADICIONADO O CAMPO "delay" (3000ms = 3 segundos de "Digitando...")
         payload_envio = {
             "number": str(remote_jid),
-            "text": resposta_bot
+            "text": resposta_bot,
+            "delay": 3000
         }
 
         try:
-            resp_envio = requests.post(url_envio, json=payload_envio, headers=headers, timeout=10)
+            resp_envio = requests.post(url_envio, json=payload_envio, headers=headers, timeout=15)
             if resp_envio.status_code not in [200, 201]:
                 numero_limpo = "".join(filter(str.isdigit, str(remote_jid)))
-                requests.post(url_envio, json={"number": numero_limpo, "text": resposta_bot}, headers=headers, timeout=10)
+                requests.post(url_envio, json={"number": numero_limpo, "text": resposta_bot, "delay": 3000}, headers=headers, timeout=15)
         except Exception as err_envio:
             print(f"Erro no envio da resposta: {err_envio}", flush=True)
 
