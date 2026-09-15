@@ -87,8 +87,8 @@ def processar_resposta(mensagem_cliente):
     - Se o cliente solicitar produtos fora da tabela, informe os padrões e avise que a equipe pode fazer orçamentos sob medida.
     """
 
-    # URL oficial v1 compatível com o modelo gemini-2.5-flash e chaves AQ
-    url_gemini = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+    # Endpoint atualizado para o modelo gemini-3.6-flash exigido pelo Google
+    url_gemini = f"https://generativelanguage.googleapis.com/v1/models/gemini-3.6-flash:generateContent?key={GEMINI_API_KEY}"
     
     payload = {
         "contents": [
@@ -115,7 +115,7 @@ def processar_resposta(mensagem_cliente):
 
 @app.route("/", methods=["GET"])
 def home():
-    return "Gráfica Atuba - Webhook Operacional com Endpoint v1!"
+    return "Gráfica Atuba - Webhook Operacional com Gemini 3.6 Flash!"
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
@@ -198,3 +198,4 @@ def webhook():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+   
