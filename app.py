@@ -1,7 +1,6 @@
 import os
 import requests
 from flask import Flask, request
-from google import genai
 
 app = Flask(__name__)
 
@@ -13,9 +12,6 @@ EVOLUTION_URL = os.environ.get("EVOLUTION_API_URL", "https://evolution-api-produ
 EVOLUTION_INSTANCE = os.environ.get("EVOLUTION_INSTANCE_NAME", "grafica-atuba")
 API_KEY = os.environ.get("EVOLUTION_API_KEY", "5F1D6E603161-4C5D-9DBA-7A59564694BF")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-
-# Inicializa o cliente aceitando nativamente a nova chave Auth (AQ...)
-client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 # Mensagem Padrão de Boas-Vindas (Apenas saudações puras)
 MENSAGEM_BOAS_VINDAS = (
@@ -59,8 +55,8 @@ def processar_resposta(mensagem_cliente):
     if msg_limpa in saudacoes_puras:
         return MENSAGEM_BOAS_VINDAS
 
-    if not client:
-        print(">>> ERRO: GEMINI_API_KEY não localizada nas variáveis!", flush=True)
+    if not GEMINI_API_KEY:
+        print(">>> ERRO: GEMINI_API_KEY não configurada no Render!", flush=True)
         return "Olá! Nosso sistema de orçamentos está em manutenção. Um atendente te responderá em breve!"
 
     prompt_sistema = """
@@ -91,25 +87,35 @@ def processar_resposta(mensagem_cliente):
     - Se o cliente solicitar produtos com especificações fora da tabela, informe as opções padrão e avise que a equipe pode fazer orçamentos sob medida.
     """
 
-    # Modelos compatíveis com a nova Auth Key (AQ...)
-    modelos = ["gemini-2.5-flash", "gemini-1.5-flash"]
+    # Chamada direta via REST API (Evita bugs de bibliotecas Python)
+    url_gemini = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
     
-    for mod in modelos:
-        try:
-            response = client.models.generate_content(
-                model=mod,
-                contents=f"{prompt_sistema}\n\nMensagem do cliente: {mensagem_cliente}"
-            )
-            if response and response.text:
-                return response.text
-        except Exception as e:
-            print(f">>> FALHA COM O MODELO {mod}: {e}", flush=True)
+    payload = {
+        "contents": [
+            {
+                "parts": [
+                    {"text": f"{prompt_sistema}\n\nMensagem do cliente: {mensagem_cliente}"}
+                ]
+            }
+        ]
+    }
 
-    return "Olá! Tivemos uma oscilação na consulta de preços. Um de nossos atendentes dará continuidade por aqui!"
+    try:
+        res = requests.post(url_gemini, json=payload, timeout=15)
+        if res.status_code == 200:
+            dados = res.json()
+            texto_resposta = dados['candidates'][0]['content']['parts'][0]['text']
+            return texto_resposta
+        else:
+            print(f">>> ERRO HTTP GEMINI ({res.status_code}): {res.text}", flush=True)
+    except Exception as e:
+        print(f">>> FALHA NA REQUISIÇÃO REST: {e}", flush=True)
+
+    return "Olá! Tivemos uma oscilação rápida na consulta. Um de nossos atendentes dará continuidade por aqui em instantes!"
 
 @app.route("/", methods=["GET"])
 def home():
-    return "Gráfica Atuba - Webhook Operacional com Chave AQ!"
+    return "Gráfica Atuba - Webhook Operacional com REST API!"
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
@@ -158,7 +164,7 @@ def webhook():
 
         msg_clean = user_message.strip().lower()
 
-        # Gatilhos exatos para pausar/despausar
+        # Comandos para pausar/despausar
         gatilhos_pausa = ["#pausa", "#atendente", "#humano", "#pausar"]
         gatilhos_retorno = ["#voltar", "#ia", "#bot", "#ativar"]
 
