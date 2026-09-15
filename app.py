@@ -94,7 +94,7 @@ def processar_resposta(mensagem_cliente):
     try:
         # Chamada pela Interactions API com leitura direta do texto retornado
         response = client.interactions.create(
-            model="gemini-3.6-flash",
+           gemini-2.5-flash.
             input=f"{prompt_sistema}\n\nMensagem do cliente: {mensagem_cliente}"
         )
         # Extração flexível para suportar ambos os formatos de retorno da SDK
